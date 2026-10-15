@@ -6,9 +6,11 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from leitores import informix
+from ia import prompts
+from leitores import informix, requisito
 from leitores.arquivo import decodificar, ler_arquivo
-from motor.unidade import COLUNAS, unidade_de_tabela
+from motor.unidade import COLUNAS, Unidade, Variavel, unidade_de_tabela
+from paginas import comum
 
 EXEMPLOS = Path(__file__).parent.parent / "exemplos"
 estado = st.session_state
@@ -102,12 +104,43 @@ if not estado["fonte"].strip():
     st.stop()
 
 funcoes = informix.listar_funcoes(estado["fonte"])
-if not funcoes:
-    st.warning("Não encontrei FUNCTION ... END FUNCTION neste texto.")
-    st.stop()
-padrao = next((i for i, nome in enumerate(funcoes) if "calcul" in nome.lower()), 0)
-funcao = st.selectbox("Função analisada", funcoes, index=padrao)
-try:
-    editar(informix.ler(estado["fonte"], funcao))
-except ValueError as erro:
-    st.error(str(erro))
+MODOS = ["Código Informix-4GL (regex)", "Requisito em português (IA → JSON)"]
+modo = st.radio("Como ler o texto?", MODOS, index=0 if funcoes else 1, horizontal=True,
+                help="O código é lido por expressões regulares; o requisito é interpretado pela IA, "
+                     "que devolve um JSON conferido pelo Python.")
+
+unidade = None
+if modo == MODOS[0]:
+    if not funcoes:
+        st.warning("Não encontrei FUNCTION ... END FUNCTION. Se o texto é um requisito, escolha a outra opção.")
+        st.stop()
+    padrao = next((i for i, nome in enumerate(funcoes) if "calcul" in nome.lower()), 0)
+    funcao = st.selectbox("Função analisada", funcoes, index=padrao)
+    try:
+        unidade = editar(informix.ler(estado["fonte"], funcao))
+    except ValueError as erro:
+        st.error(str(erro))
+else:
+    assinatura = hashlib.sha1(estado["fonte"].encode()).hexdigest()
+    coluna_ia, coluna_mao = st.columns(2)
+    if coluna_ia.button("🤖 Interpretar o requisito com a IA", disabled=not comum.ia_ligada()):
+        resposta = comum.chamar_ia(prompts.interpretar(estado["fonte"]), json=True)
+        if resposta:
+            try:
+                estado["requisito"] = (assinatura, requisito.unidade_de_json(resposta[0]))
+            except ValueError as erro:
+                st.error(str(erro))
+    if coluna_mao.button("✍️ Preencher a tabela à mão"):
+        estado["requisito"] = (assinatura, Unidade(
+            "requisito", [Variavel("entrada1", "DECIMAL(12,2)")], origem="requisito preenchido à mão",
+            observacoes=["Tabela preenchida à mão a partir do requisito."]))
+    if not comum.ia_ligada():
+        st.caption("A IA está desligada (sem chave): dá para preencher a tabela à mão lendo o requisito.")
+    guardado = estado.get("requisito")
+    if guardado and guardado[0] == assinatura:
+        unidade = editar(guardado[1])
+
+if unidade is not None:
+    st.divider()
+    comum.resposta_guardada("explicacao", prompts.explicar(estado["fonte"], unidade),
+                            "🤖 Explicar a unidade com a IA", "A IA explica o que a unidade faz; o Python calcula.")
