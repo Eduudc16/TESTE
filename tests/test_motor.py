@@ -8,7 +8,7 @@ import pytest
 
 from leitores import informix
 from leitores.arquivo import decodificar, ler_arquivo
-from motor import tipos
+from motor import particao, tipos
 from motor.formula import Formula
 
 EXEMPLOS = Path(__file__).parent.parent / "exemplos"
@@ -135,3 +135,37 @@ def test_regra_com_menor_ou_igual_soma_epsilon():
     RETURN a
 END FUNCTION"""
     assert informix.ler(fonte).entradas[0].minimo == D("0.1")
+
+
+# --- Etapa 5: PCE ---------------------------------------------------------------------------
+
+def unidade_cad0001():
+    texto, _ = ler_arquivo(EXEMPLOS / "cad0001_item_calculo.txt")
+    return informix.ler(texto)
+
+
+def test_valores_tipicos_diferentes_por_variavel():
+    assert particao.tipicos(unidade_cad0001()) == {"p_val1": D("50.00"), "p_val2": D("51.00"), "p_val3": D("52.00")}
+
+
+def test_classes_do_cad0001():
+    classes = particao.classes_de_equivalencia(unidade_cad0001())
+    assert [classe.id for classe in classes] == [f"CE{n}" for n in range(1, 16)]
+    assert [(c.tipo, c.valida) for c in classes[:4]] == [
+        ("dentro", True), ("abaixo", False), ("acima", False), ("nulo", True)]
+    assert classes[1].representante == D("-19999999999.98")   # meia largura abaixo do mínimo
+    assert classes[2].representante == D("19999999999.98")
+    assert [c.tipo for c in classes[12:]] == ["saida_dentro", "saida_acima", "saida_abaixo"]
+    assert classes[13].representante == {"p_val1": D("9999999999.99"), "p_val2": D("51.00"), "p_val3": D("52.00")}
+
+
+def test_casos_pce_cobrem_tudo_com_uma_invalida_por_caso():
+    unidade = unidade_cad0001()
+    classes = particao.classes_de_equivalencia(unidade)
+    casos = particao.casos_pce(unidade, classes)
+    for caso in casos:
+        caso.classes = particao.classificar(unidade, classes, caso.valores)
+    invalidas = {classe.id for classe in classes if not classe.valida}
+    assert all(len(set(caso.classes) & invalidas) <= 1 for caso in casos)
+    assert {id_ for caso in casos for id_ in caso.classes} == {classe.id for classe in classes}
+    assert {"p_val1": None, "p_val2": None, "p_val3": None} in [caso.valores for caso in casos]

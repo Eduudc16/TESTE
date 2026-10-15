@@ -89,6 +89,17 @@ class Unidade:
     def entrada(self, nome):
         return next(v for v in self.entradas if v.nome == nome)
 
+    @property
+    def tem_regra_de_saida(self):
+        """Há fórmula e uma saída de tipo exato: dá para fazer PCE e AVL na saída."""
+        return bool(self.formula) and self.saida is not None and self.saida.dominio.familia == "exato"
+
+    def calcular(self, valores):
+        """Valor exato da fórmula (sem arredondar), com NULL valendo 0."""
+        numeros = {nome: Decimal(0) if valor is None else Decimal(repr(valor)) if isinstance(valor, float)
+                   else valor for nome, valor in valores.items()}
+        return Formula(self.formula).avaliar(numeros)
+
     def problemas(self):
         """O que impede a análise (tipo inválido, fórmula com nome desconhecido...)."""
         erros = []
