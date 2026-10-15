@@ -1,0 +1,16 @@
+# Segredos: a API Key do Gemini nunca vai para o Git
+.streamlit/secrets.toml
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Sistema e editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
