@@ -111,7 +111,7 @@ entrada passa a ser 0.00.
 - [x] o gabarito confere (`python -m pytest`)
 - [x] a IA explica, interpreta e revisa — e erro vira mensagem amigável
 - [x] README dizendo como rodar
-- [ ] commit e push antes do fim da aula, com o e-mail certo (`git config user.email` local)
+- [x] commit e push antes do fim da aula, com o e-mail certo (`git config user.email` local)
 
 ## Referências
 
