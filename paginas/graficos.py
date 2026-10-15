@@ -43,18 +43,24 @@ def regua(fronteira):
     escala = alt.Scale(domain=[-1.8, 1.8])
     eixo = alt.Axis(values=[-1, 0, 1], labelExpr="datum.value == 0 ? 'X' : datum.value < 0 ? 'X − ε' : 'X + ε'",
                     title=None, grid=False)
+    # altura em fração do gráfico (0 = base, 1 = topo): o Streamlit desconta legenda e eixo da altura total
+    vertical = alt.Scale(domain=[0, 1])
+    dados["Altura"] = 0.35
 
     def x(campo):  # todas as camadas usam o mesmo eixo
         return alt.X(campo, scale=escala, axis=eixo)
 
+    def y(campo):
+        return alt.Y(campo, scale=vertical, axis=None)
+
     faixas = alt.Chart(pd.DataFrame(lados)).mark_rect(opacity=0.12).encode(
         x=x("de:Q"), x2="ate:Q", color=alt.Color("Situação:N", scale=CORES, legend=None))
-    fronteira_x = alt.Chart(pd.DataFrame({"Posição": [0.0]})).mark_rule(strokeDash=[4, 4], color=TINTA).encode(
-        x=x("Posição:Q"), y=alt.value(82), y2=alt.value(170))
+    fronteira_x = alt.Chart(pd.DataFrame({"Posição": [0.0], "base": [0.0], "topo": [0.42]})).mark_rule(
+        strokeDash=[4, 4], color=TINTA).encode(x=x("Posição:Q"), y=y("base:Q"), y2="topo:Q")
     marcas = alt.Chart(dados).mark_point(size=220, filled=True, opacity=1).encode(
-        x=x("Posição:Q"), y=alt.value(100), color=alt.Color("Situação:N", scale=CORES, legend=alt.Legend(
+        x=x("Posição:Q"), y=y("Altura:Q"), color=alt.Color("Situação:N", scale=CORES, legend=alt.Legend(
             title=None, orient="top")), shape=alt.Shape("Situação:N", scale=FORMAS, legend=None),
         tooltip=["Ponto", "Valor", "Resultado", "Situação"])
-    rotulos = alt.Chart(dados).mark_text(lineBreak="\n", dy=-36, fontSize=12, color=TINTA).encode(
-        x=x("Posição:Q"), y=alt.value(100), text="Rótulo:N")
-    return alt.layer(faixas, fronteira_x, marcas, rotulos).properties(height=170)
+    rotulos = alt.Chart(dados).mark_text(lineBreak="\n", dy=-34, fontSize=12, color=TINTA).encode(
+        x=x("Posição:Q"), y=y("Altura:Q"), text="Rótulo:N")
+    return alt.layer(faixas, fronteira_x, marcas, rotulos).properties(height=200)

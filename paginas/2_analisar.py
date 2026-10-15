@@ -26,12 +26,20 @@ resultado = suite.montar(unidade, regra)
 estado["suite"] = resultado
 casos = resultado.casos
 
-colunas = st.columns(4)
+colunas = st.columns(3)
 colunas[0].metric("Classes de equivalência", len(resultado.classes))
 colunas[1].metric("Fronteiras", len(resultado.fronteiras))
 colunas[2].metric("Casos de teste", len(casos))
+NOMES = {"ok": ("aceito", "aceitos"), "rejeitar": ("rejeitado", "rejeitados"),
+         "estouro": ("estouro", "estouros"), "pergunta": ("pergunta", "perguntas")}
 contagem = {situacao: sum(c.resultado.situacao == situacao for c in casos) for situacao in oraculo.SIMBOLOS}
-colunas[3].metric("Esperados", " ".join(f"{oraculo.SIMBOLOS[s]} {n}" for s, n in contagem.items() if n))
+st.markdown("**Esperados:** " + " · ".join(f"{oraculo.SIMBOLOS[s]} {n} {NOMES[s][n != 1]}"
+                                           for s, n in contagem.items() if n))
+
+
+def altura(linhas):
+    """Altura que mostra a tabela inteira, sem barra de rolagem interna (35 px por linha)."""
+    return 38 + 35 * linhas
 
 
 def representante(classe):
@@ -44,7 +52,7 @@ def representante(classe):
 
 def tabela_de_casos(tecnica=None):
     linhas = suite.linhas_de_casos([caso for caso in casos if tecnica in (None, caso.tecnica)])
-    st.dataframe(pd.DataFrame(linhas), hide_index=True)
+    st.dataframe(pd.DataFrame(linhas), hide_index=True, height=altura(len(linhas)))
 
 
 aba_epsilon, aba_pce, aba_avl, aba_casos = st.tabs(["ε e domínio", "PCE", "AVL", "Casos de teste"])
@@ -60,7 +68,7 @@ with aba_pce:
     st.dataframe(pd.DataFrame([{
         "Classe": classe.id, "Variável": classe.alvo, "Descrição": classe.descricao,
         "Válida": "✅" if classe.valida else "❌", "Representante": representante(classe)}
-        for classe in resultado.classes]), hide_index=True)
+        for classe in resultado.classes]), hide_index=True, height=altura(len(resultado.classes)))
     st.markdown("**Cobertura:** quantos casos de teste (PCE e AVL) exercitam cada classe.")
     st.altair_chart(graficos.cobertura(particao.cobertura(resultado.classes, casos)))
     st.markdown("**Casos da PCE:** valores típicos para as classes válidas e um caso por classe inválida.")
@@ -69,7 +77,8 @@ with aba_pce:
 with aba_avl:
     st.markdown("**Análise do Valor Limite:** em cada fronteira X, os pontos X − ε, X e X + ε, variando uma "
                 "entrada por vez. Na saída, o Python resolve qual valor de entrada leva o resultado à fronteira.")
-    st.dataframe(pd.DataFrame([limites.linha(fronteira) for fronteira in resultado.fronteiras]), hide_index=True)
+    st.dataframe(pd.DataFrame([limites.linha(fronteira) for fronteira in resultado.fronteiras]), hide_index=True,
+                 height=altura(len(resultado.fronteiras)))
     por_id = {fronteira.id: fronteira for fronteira in resultado.fronteiras if fronteira.pontos}
     escolhida = st.selectbox("Régua da fronteira", list(por_id),
                              format_func=lambda id_: f"{id_} · {por_id[id_].alvo} {por_id[id_].lado} "
