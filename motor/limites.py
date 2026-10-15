@@ -20,7 +20,7 @@ from motor.unidade import Caso
 
 @dataclass
 class Ponto:
-    rotulo: str             # "X − ε", "X", "X + ε" (ou "⌊x⌋", "⌈x⌉" quando x não é múltiplo de ε)
+    rotulo: str             # "X − ε", "X", "X + ε" (ou "abaixo de x" e "acima de x" se x não é múltiplo de ε)
     valor: object           # valor da entrada que varia
     valido: bool            # a entrada é aceita e (na saída) o resultado cabe no tipo?
     posicao: float          # distância até a fronteira, em ε (para a régua)
@@ -103,7 +103,7 @@ def _fronteiras_da_saida(unidade):
         if multiplo:
             valores = (("x − ε", x - eps), ("x", x), ("x + ε", x + eps))
         else:
-            valores = (("⌊x⌋", x.quantize(eps, ROUND_FLOOR)), ("⌈x⌉", x.quantize(eps, ROUND_CEILING)))
+            valores = (("abaixo de x", x.quantize(eps, ROUND_FLOOR)), ("acima de x", x.quantize(eps, ROUND_CEILING)))
         pontos = []
         for rotulo, valor in valores:
             resultado = unidade.calcular(dict(base, **{variavel.nome: valor}))

@@ -8,7 +8,7 @@ import pytest
 
 from leitores import informix
 from leitores.arquivo import decodificar, ler_arquivo
-from motor import limites, oraculo, particao, suite, tipos
+from motor import exportar, limites, oraculo, particao, suite, tipos
 from motor.formula import Formula
 
 EXEMPLOS = Path(__file__).parent.parent / "exemplos"
@@ -253,3 +253,38 @@ def test_manual_rejeita_negativo():
     unidade = informix.ler(texto)
     valores = {"val_param1": D("-0.01"), "val_param2": D("51.00"), "val_param3": D("52.00")}
     assert oraculo.esperado(unidade, valores).situacao == "rejeitar"
+
+
+# --- Etapa 9: exportação ----------------------------------------------------------------------
+
+def test_csv_abre_no_excel():
+    resultado = suite.montar(unidade_cad0001())
+    dados = exportar.csv_bytes(resultado.casos)
+    assert dados.startswith(b"\xef\xbb\xbf")  # BOM: o Excel reconhece o UTF-8 e os acentos
+    linhas = dados.decode("utf-8-sig").splitlines()
+    assert linhas[0].split(";")[:6] == ["Caso", "Técnica", "Descrição", "p_val1", "p_val2", "p_val3"]
+    assert linhas[1].split(";")[3:8] == ["50,00", "51,00", "52,00", "ok", "2602,00"]
+    assert len(linhas) == 1 + len(resultado.casos)
+
+
+def test_pytest_exportado_passa_com_uma_traducao_correta():
+    unidade = unidade_cad0001()
+    resultado = suite.montar(unidade)
+    modulo = {}
+    exec(compile(exportar.pytest_py(unidade, resultado.casos, resultado.regra), "test_gerado.py", "exec"), modulo)
+
+    def traducao(p_val1, p_val2, p_val3):  # o CAD0001 traduzido para Python, como o aluno faria
+        limite = D("9999999999.99")
+        valores = []
+        for valor in (p_val1, p_val2, p_val3):
+            if valor is not None and not -limite <= valor <= limite:
+                return modulo["REJEITAR"]
+            valores.append(D(0) if valor is None else valor)
+        conta = (valores[0] * valores[1] + valores[2]).quantize(D("0.01"), rounding="ROUND_HALF_UP")
+        return modulo["ESTOURO"] if abs(conta) > limite else conta
+
+    casos = modulo["CASOS"]
+    assert len(casos) == len(resultado.casos)
+    for parametros in casos:
+        *entradas, esperado = parametros.values
+        assert traducao(*entradas) == esperado, parametros.id

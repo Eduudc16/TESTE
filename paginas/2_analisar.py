@@ -3,7 +3,7 @@
 import pandas as pd
 import streamlit as st
 
-from motor import limites, oraculo, particao, suite
+from motor import exportar, limites, oraculo, particao, suite
 from motor.tipos import mostrar
 from paginas import graficos
 
@@ -85,6 +85,13 @@ with aba_casos:
                 "arredondada para a escala da saída; ⚠️ quando o resultado não cabe no tipo; ❓ quando a "
                 "especificação não responde.")
     tabela_de_casos()
+    coluna_csv, coluna_pytest = st.columns(2)
+    coluna_csv.download_button("⬇️ Baixar CSV (Excel)", exportar.csv_bytes(casos), f"casos_{unidade.nome}.csv",
+                               "text/csv", help="Separado por ponto e vírgula, em UTF-8 com BOM: abre certinho no Excel.")
+    funcao = exportar.identificador(unidade.nome)
+    coluna_pytest.download_button("🐍 Baixar testes pytest", exportar.pytest_py(unidade, casos, regra),
+                                  f"test_{funcao}.py", "text/x-python",
+                                  help="Um @pytest.mark.parametrize com todos os casos e o resultado esperado.")
 
 if resultado.achados:
     st.subheader("❓ Perguntas para o analista")
