@@ -8,7 +8,7 @@ import pytest
 
 from leitores import informix
 from leitores.arquivo import decodificar, ler_arquivo
-from motor import limites, particao, tipos
+from motor import limites, oraculo, particao, suite, tipos
 from motor.formula import Formula
 
 EXEMPLOS = Path(__file__).parent.parent / "exemplos"
@@ -209,3 +209,47 @@ def test_casos_avl():
     casos = limites.casos_avl(unidade, limites.fronteiras(unidade))
     assert len(casos) == 6 * 3 + 2 + 3
     assert {"p_val1": D("50.00"), "p_val2": D("51.00"), "p_val3": D("9999997449.99")} in [c.valores for c in casos]
+
+
+# --- Etapa 7: oráculo do cad0001_calcula_valor -----------------------------------------------
+
+@pytest.mark.parametrize("p_val1, p_val2, p_val3, esperado", [
+    (D("50.00"), D("51.00"), D("52.00"), "✅ 2602.00"),
+    (None, None, None, "✅ 0.00"),                                         # NULL vira 0
+    (D("9999999999.99"), D("51.00"), D("52.00"), "⚠️ estouro (510000000051.49)"),
+    (D("50.00"), D("51.00"), D("9999997449.99"), "✅ 9999999999.99"),     # fronteira exata da saída
+    (D("50.00"), D("51.00"), D("9999997450.00"), "⚠️ estouro (10000000000.00)"),
+    (D("10000000000.00"), D("51.00"), D("52.00"), "❌ rejeitar (p_val1 fora da faixa)"),
+])
+def test_oraculo_do_gabarito(p_val1, p_val2, p_val3, esperado):
+    valores = {"p_val1": p_val1, "p_val2": p_val2, "p_val3": p_val3}
+    assert oraculo.esperado(unidade_cad0001(), valores).texto() == esperado
+
+
+@pytest.mark.parametrize("regra, valor", [("meio para cima", D("0.01")), ("meio para o par", D("0.00"))])
+def test_arredondamento_e_pergunta_para_o_analista(regra, valor):
+    valores = {"p_val1": D("0.01"), "p_val2": D("0.50"), "p_val3": D("0.00")}
+    resultado = oraculo.esperado(unidade_cad0001(), valores, regra)
+    assert resultado.situacao == "pergunta"
+    assert resultado.exato == D("0.0050") and tipos.mostrar(resultado.exato) == "0.0050"
+    assert resultado.valor == valor
+
+
+def test_caso_de_arredondamento_gerado():
+    caso = oraculo.caso_de_arredondamento(unidade_cad0001())
+    assert caso.valores == {"p_val1": D("0.01"), "p_val2": D("0.50"), "p_val3": D("0.00")}
+
+
+def test_suite_completa():
+    resultado = suite.montar(unidade_cad0001())
+    assert (len(resultado.classes), len(resultado.fronteiras), len(resultado.casos)) == (15, 8, 34)
+    assert len({caso.id for caso in resultado.casos}) == 34
+    assert any("arredondar" in achado for achado in resultado.achados)
+    assert any("estourar" in achado for achado in resultado.achados)
+
+
+def test_manual_rejeita_negativo():
+    texto, _ = ler_arquivo(EXEMPLOS / "cad0001_manual.txt")
+    unidade = informix.ler(texto)
+    valores = {"val_param1": D("-0.01"), "val_param2": D("51.00"), "val_param3": D("52.00")}
+    assert oraculo.esperado(unidade, valores).situacao == "rejeitar"
