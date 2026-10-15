@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 
-from motor import tipos
+from motor import exato, tipos
 from motor.formula import Formula
 
 COLUNAS = ("Nome", "Tipo", "Mínimo (regra)", "Máximo (regra)", "NULL vira 0")
@@ -47,13 +47,21 @@ class Variavel:
         return tipos.dominio(self.tipo)
 
     @property
+    @exato
     def faixa(self):
-        """(mínimo, máximo) aceitos: a faixa do tipo estreitada pelas regras de negócio."""
+        """(mínimo, máximo) aceitos: a faixa do tipo estreitada pelas regras de negócio.
+
+        Nos tipos exatos a regra é levada ao múltiplo de ε mais próximo por dentro da faixa:
+        "a partir de 0" em DECIMAL(12,2) vira 0.00.
+        """
         dominio = self.dominio
         if dominio.familia == "texto":
             return dominio.minimo, dominio.maximo
         minimo = dominio.minimo if self.minimo is None else max(dominio.minimo, self.minimo)
         maximo = dominio.maximo if self.maximo is None else min(dominio.maximo, self.maximo)
+        if dominio.familia == "exato":
+            minimo = minimo.quantize(dominio.epsilon, ROUND_CEILING)
+            maximo = maximo.quantize(dominio.epsilon, ROUND_FLOOR)
         return minimo, maximo
 
     def medida(self, valor):

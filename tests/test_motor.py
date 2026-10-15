@@ -8,7 +8,7 @@ import pytest
 
 from leitores import informix
 from leitores.arquivo import decodificar, ler_arquivo
-from motor import particao, tipos
+from motor import limites, particao, tipos
 from motor.formula import Formula
 
 EXEMPLOS = Path(__file__).parent.parent / "exemplos"
@@ -125,7 +125,8 @@ def test_ler_cad0001_do_manual_com_regra_de_negocio():
         ("val_param1", "DECIMAL(12,2)", True, D("0")), ("val_param2", "DECIMAL(12,2)", True, D("0")),
         ("val_param3", "DECIMAL(12,2)", True, D("0"))]
     assert unidade.formula == "(val_param1 * val_param2) + val_param3"
-    assert unidade.entradas[0].faixa == (D("0"), D("9999999999.99"))
+    assert unidade.entradas[0].faixa == (D("0.00"), D("9999999999.99"))
+    assert tipos.mostrar(unidade.entradas[0].faixa[0]) == "0.00"
 
 
 def test_regra_com_menor_ou_igual_soma_epsilon():
@@ -169,3 +170,42 @@ def test_casos_pce_cobrem_tudo_com_uma_invalida_por_caso():
     assert all(len(set(caso.classes) & invalidas) <= 1 for caso in casos)
     assert {id_ for caso in casos for id_ in caso.classes} == {classe.id for classe in classes}
     assert {"p_val1": None, "p_val2": None, "p_val3": None} in [caso.valores for caso in casos]
+
+
+# --- Etapa 6: AVL ---------------------------------------------------------------------------
+
+def test_oito_fronteiras_e_avl_no_maximo_da_entrada():
+    fronteiras = limites.fronteiras(unidade_cad0001())
+    assert len(fronteiras) == 8
+    assert limites.linha(fronteiras[1])["Pontos"] == "9999999999.98 ✅ · 9999999999.99 ✅ · 10000000000.00 ❌"
+    assert limites.linha(fronteiras[0])["Pontos"] == "-10000000000.00 ❌ · -9999999999.99 ✅ · -9999999999.98 ✅"
+
+
+def test_avl_no_maximo_da_saida_e_exata():
+    unidade = unidade_cad0001()
+    variavel, x, multiplo = limites.resolver_saida(unidade, D("9999999999.99"))
+    assert (variavel.nome, x, multiplo) == ("p_val3", D("9999997449.99"), True)
+    maximo = limites.fronteiras(unidade)[7]
+    assert [tipos.mostrar(p.valor) for p in maximo.pontos] == ["9999997449.98", "9999997449.99", "9999997450.00"]
+    assert [p.valido for p in maximo.pontos] == [True, True, False]
+    assert maximo.pontos[1].resultado == D("9999999999.99")
+
+
+def test_avl_no_minimo_da_saida_testa_os_dois_vizinhos():
+    minimo = limites.fronteiras(unidade_cad0001())[6]
+    assert minimo.variavel == "p_val1"  # p_val3 precisaria sair da faixa do tipo
+    assert [tipos.mostrar(p.valor) for p in minimo.pontos] == ["-196078432.40", "-196078432.39"]
+    assert [p.valido for p in minimo.pontos] == [False, True]
+
+
+def test_regra_do_manual_vira_fronteira_em_zero():
+    texto, _ = ler_arquivo(EXEMPLOS / "cad0001_manual.txt")
+    fronteira = limites.fronteiras(informix.ler(texto))[0]
+    assert limites.linha(fronteira)["Pontos"] == "-0.01 ❌ · 0.00 ✅ · 0.01 ✅"
+
+
+def test_casos_avl():
+    unidade = unidade_cad0001()
+    casos = limites.casos_avl(unidade, limites.fronteiras(unidade))
+    assert len(casos) == 6 * 3 + 2 + 3
+    assert {"p_val1": D("50.00"), "p_val2": D("51.00"), "p_val3": D("9999997449.99")} in [c.valores for c in casos]
