@@ -1,0 +1,7 @@
+Requisito: cálculo do valor do item (CAD0001)
+
+A função cad0001_calcula_valor recebe três valores monetários: p_val1, p_val2 e p_val3,
+todos do tipo DECIMAL(12,2). Um valor nulo deve ser tratado como zero.
+
+O valor calculado é (p_val1 * p_val2) + p_val3 e é gravado na tabela cad_item_calculo,
+no campo val_calculado, também do tipo DECIMAL(12,2).
